@@ -1,0 +1,57 @@
+x-app-env: &app-env
+  env_file: .env
+  environment:
+    DATABASE_URL: postgresql+psycopg://concierge:concierge@db:5432/concierge
+    REDIS_URL: redis://redis:6379/0
+    VENDOR_BASE_URL: http://mock-vendor:9000
+    VENDOR_WEBHOOK_URL: http://api:8000/v1/webhooks/vendors/mockclean
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: concierge
+      POSTGRES_PASSWORD: concierge
+      POSTGRES_DB: concierge
+    ports: ["5432:5432"]
+    volumes:
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U concierge"]
+      interval: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports: ["6379:6379"]
+
+  api:
+    build: .
+    <<: *app-env
+    ports: ["8000:8000"]
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_started }
+
+  worker:
+    build: .
+    <<: *app-env
+    command: ["celery", "-A", "app.workers.celery_app", "worker", "-Q", "intent,booking,notify,webhook", "-l", "info", "-c", "4"]
+    depends_on: [api]
+
+  scheduler:
+    build: .
+    <<: *app-env
+    command: ["python", "-m", "app.workers.scheduler"]
+    depends_on: [api]
+
+  mock-vendor:
+    build: .
+    <<: *app-env
+    command: ["uvicorn", "mock_vendor.main:app", "--host", "0.0.0.0", "--port", "9000"]
+    ports: ["9000:9000"]
+
+volumes:
+  pgdata:

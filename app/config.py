@@ -1,0 +1,51 @@
+from functools import lru_cache
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    """All configuration comes from env vars (or .env). On AWS, inject via ECS task definition + Secrets Manager."""
+
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    app_env: str = "local"
+    database_url: str = "postgresql+psycopg://concierge:concierge@localhost:5432/concierge"
+    redis_url: str = "redis://localhost:6379/0"
+    default_timezone: str = "Asia/Kolkata"
+    aws_region: str = "ap-south-1"
+
+    llm_provider: str = "fake"  # fake | bedrock
+    bedrock_model_id: str = ""
+    embeddings_provider: str = "fake"  # fake | bedrock
+    bedrock_embed_model_id: str = "amazon.titan-embed-text-v2:0"
+    embedding_dim: int = 512
+    prompt_version: str = "intent-v1"
+
+    email_provider: str = "console"  # console | ses
+    ses_from_address: str = "no-reply@example.com"
+    ses_configuration_set: str = ""
+    whatsapp_provider: str = "console"  # console | meta
+    whatsapp_token: str = ""
+    whatsapp_phone_number_id: str = ""
+    whatsapp_api_version: str = "v21.0"
+    whatsapp_verify_token: str = "dev-verify-token"
+    whatsapp_app_secret: str = ""
+    whatsapp_max_per_second: int = 50
+    email_max_per_second: int = 14
+
+    vendor_base_url: str = "http://localhost:9000"
+    vendor_webhook_secret: str = "dev-vendor-secret"
+    vendor_webhook_tolerance_seconds: int = 300
+
+    scheduler_interval_seconds: float = 1.0
+    step_lease_seconds: int = 300
+    max_step_attempts: int = 5
+    booking_lead_time_minutes: int = 120
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
+
+
+settings = get_settings()
