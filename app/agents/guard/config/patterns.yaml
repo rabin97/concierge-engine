@@ -1,0 +1,184 @@
+# Layer 1 injection/jailbreak rules. Versioned; every rule id is logged when it fires.
+# Patterns run case-insensitively against the normalized matching variants
+# (homoglyph skeleton, URL/HTML/base64 decoded, de-leeted, de-spaced).
+#   severity: contribution to risk (0..1)
+#   action:   score (default) | block (hard block regardless of total risk)
+#   variants: which normalized views to scan; default = all text views except "compact"
+#   status:   active (default) | shadow (log only) | disabled
+version: "2026.11.07-1"
+
+rules:
+  # ---------------------------------------------------------------- instruction override
+  - id: INJ-001
+    category: instruction_override
+    severity: 0.9
+    description: ignore/disregard previous instructions
+    patterns:
+      - '\b(ignore|disregard|forget|override|bypass|abandon|neglect)\b[^.\n]{0,40}\b(previous|prior|above|earlier|preceding|all|any|your|the|these|those|system|initial|original|default)\b[^.\n]{0,30}\b(instructions?|prompts?|rules?|guidelines?|context|directives?|commands?|programming|constraints?|polic(y|ies))\b'
+      - '\b(ignore|disregard|forget|override)\b[^.\n]{0,15}\b(everything|anything|all)\b[^.\n]{0,10}\b(you\s*(were|''ve been|have been|was)\s*(told|given|taught)|above|before this|so far|said before)'
+      - '\b(ignore|disregard|forget)\s+(all\s+|everything\s+)?(of\s+)?(the\s+)?(text|content|message|words)?\s*above\b'
+      - '\b(do not|don''t|dont|stop)\s+(follow|obey|listen to)\w*\s+(your|the|any|previous|system)\b[^.\n]{0,20}\b(instructions?|rules?|guidelines?|prompt)'
+
+  - id: INJ-002
+    category: instruction_override
+    severity: 0.7
+    description: new instructions / from now on
+    patterns:
+      - '\b(new|updated|real|actual|true|revised)\s+(instructions?|rules?|task|objective|directive|system prompt)\s*[:\-]'
+      - '\bfrom now on\b[^.\n]{0,20}\byou\s+(will|are|must|should|shall|can)\b'
+      - '\byour\s+(new|real|true|actual)\s+(task|role|purpose|goal|instructions?|job)\b'
+      - '\b(instead|rather),?\s+(you\s+)?(must|will|should)\s+(now\s+)?(only\s+)?(respond|answer|reply|say|output)'
+
+  - id: INJ-003
+    category: instruction_override
+    severity: 0.9
+    description: compact form of override phrases (defeats spacing/punctuation tricks)
+    variants: [compact]
+    patterns:
+      - '(ignore|disregard|forget|bypass|override)[a-z]{0,20}?(previous|prior|above|earlier|system|initial|your)[a-z]{0,15}?(instructions?|prompts?|rules|guidelines|directions)'
+      - '(ignore|disregard|forget)(everything|anything|all)[a-z]{0,10}?(youweretold|youvebeentold|above|sofar)'
+      - '(pretendyou(are|re)|youarenow(an?)?(unrestricted|unfiltered|uncensored|evil|dan)|newinstructions)'
+      - '(reveal|show|print|leak|dump|repeat|translate|output|display)[a-z]{0,12}?(system|hidden|initial|secret)(prompt|message|instructions|rules)'
+      - '(system|hidden|initial)prompt[a-z0-9]{0,6}?(reveal|show|print|leak|dump|repeat|verbatim)'
+      - 'developermode|jailbreakmode|doanythingnow|godmodeenabled|dannmode|danmode'
+
+  # ---------------------------------------------------------------- role-play / personas
+  - id: RP-001
+    category: role_play
+    severity: 0.6
+    description: pretend you are / you are now
+    patterns:
+      - '\b(pretend|imagine|suppose)\b[^.\n]{0,15}\b(you\s*(are|were|''re)|to be|you can)\b'
+      - '\byou\s+are\s+(now|no longer)\b'
+      - '\b(role-?play|roleplay)\s+(as|with)\b'
+      - '\b(from now on|henceforth)\b[^.\n]{0,15}\b(act|behave|respond|speak)\s+(as|like)\b'
+      - '\bact\s+as\s+(an?\s+)?(unrestricted|unfiltered|uncensored|evil|rogue|different|another)\b'
+
+  - id: JB-001
+    category: jailbreak
+    severity: 0.9
+    description: known jailbreak personas and "no restrictions" framing
+    patterns:
+      - '\bdo anything now\b'
+      - '\byou\s+are\s+(now\s+)?(dan|stan|dude|aim|mongo tom|evilbot|developer mode gpt)\b'
+      - '\b(dan|stan|aim)\s+(mode|prompt|jailbreak)\b'
+      - '\bjail\s?-?break(ing|ed|s)?\b'
+      - '\b(without|no|free (of|from)|remove( all)?|disable( all)?|bypass( all)?)\s+(any\s+|all\s+|your\s+)?(restrictions|filters|limitations|guardrails|safety|censorship|content polic(y|ies)|ethical guidelines)\b'
+      - '\b(unfiltered|uncensored|unrestricted)\s+(mode|ai|assistant|response|version)\b'
+      - '\bevil\s+(confidant|twin|mode|assistant)\b'
+
+  - id: DEV-001
+    category: developer_mode
+    severity: 0.8
+    description: developer / debug / god mode
+    patterns:
+      - '\b(developer|dev|debug|god|admin|sudo|root|maintenance|test|diagnostic|unlocked)\s+mode\b[^.\n]{0,25}\b(on|enabled?|activated?|engaged|unlocked|now)\b'
+      - '\b(enable|activate|enter|switch to|turn on|unlock)\s+(the\s+)?(developer|dev|debug|god|admin|sudo|root|maintenance|diagnostic)\s+mode\b'
+      - '\bdeveloper\s+mode\b'
+
+  # ---------------------------------------------------------------- delimiter attacks
+  - id: DEL-001
+    category: delimiter_attack
+    severity: 0.95
+    action: block
+    description: chat-template control tokens
+    patterns:
+      - '<\|\s*(im_start|im_end|system|user|assistant|endoftext|eot_id|start_header_id|end_header_id|begin_of_text)\s*\|>'
+      - '\[/?inst\]'
+      - '<<\s*/?\s*sys\s*>>'
+
+  - id: DEL-002
+    category: delimiter_attack
+    severity: 0.8
+    description: fake role tags / headers
+    patterns:
+      - '</?\s*(system|assistant|instructions?|sys|admin|developer|prompt|context|user_input)\s*>'
+      - '(^|\n)\s*#{2,}\s*(system|instructions?|new instructions?|admin|developer|override)\b'
+      - '(^|\n)\s*(system|assistant|developer)\s*(message|prompt)?\s*:\s*\S'
+      - '(^|\n)\s*-{3,}\s*(end of|begin|start of)\s+(user|system|prompt|input|instructions)'
+      - '\b(end of (user )?(input|message|prompt)|end of system prompt|begin (new )?system prompt)\b'
+
+  # ---------------------------------------------------------------- prompt extraction
+  - id: EXT-001
+    category: prompt_extraction
+    severity: 0.85
+    description: requests to reveal hidden instructions
+    patterns:
+      - '\b(reveal|show|print|display|repeat|output|tell|give|leak|dump|share|recite|write out|spell out|translate|summari[sz]e|paraphrase|encode|rewrite|what (is|are|were))\b[^.\n]{0,40}\b(system\s*prompt|system\s*message|hidden\s+(instructions?|prompt|rules)|initial\s+(instructions?|prompt)|original\s+(instructions?|prompt)|your\s+(instructions|prompt|guidelines|configuration|directives|programming)|pre-?prompt)\b'
+      - '\b(repeat|print|output|copy)\b[^.\n]{0,20}\b(everything|all|the text|the words|what''s written)\b[^.\n]{0,15}\b(above|before|so far|prior)\b'
+      - '\b(what|which)\b[^.\n]{0,25}\b(instructions|prompt|directives)\b[^.\n]{0,15}\byou\b[^.\n]{0,15}\b(given|told|programmed|trained|configured)\b'
+      - '\b(reveal|print|dump|leak|recite|show me|list)\b[^.\n]{0,20}\byour\s+(hidden|secret|internal|system)\s+rules\b'
+
+  - id: EXT-002
+    category: secret_probing
+    severity: 0.7
+    description: probing for credentials or internals
+    patterns:
+      - '\b(your|system|database|db|backend|server|admin|openai|anthropic|aws)\s+(api[\s_-]?keys?|secret[\s_-]?keys?|passwords?|credentials|access[\s_-]?tokens?|connection strings?)\b'
+      - '(?<![\w])\.env\b|\b(env(ironment)?\s+variables|os\.environ)\b|/etc/(passwd|shadow)'
+
+  # ---------------------------------------------------------------- privilege claims
+  - id: PRIV-001
+    category: impersonation
+    severity: 0.55
+    description: claims to be staff / developer / admin
+    patterns:
+      - '\b(i\s*am|i''m|this\s+is)\s+(the|your|an?)\s+(developer|admin|administrator|creator|support (agent|staff)|staff member|operator|ceo|system)\b'
+      - '\b(as|with)\s+(an?\s+)?(admin|administrator|root|superuser)\s+(access|privileges|rights|override)\b'
+      - '\b(authorized|authorised)\s+(by|from)\s+(the\s+)?(admin|developers?|management|anthropic|openai)\b'
+
+  # ---------------------------------------------------------------- obfuscation intent
+  - id: ENC-001
+    category: obfuscation
+    severity: 0.55
+    description: decode-and-follow instructions
+    patterns:
+      - '\b(decode|decrypt|base64|rot13|reverse|unscramble)\b[^.\n]{0,40}\b(and|then)\b[^.\n]{0,20}\b(follow|execute|run|obey|do (it|what)|act on|perform)\b'
+
+  # ---------------------------------------------------------------- Indian languages
+  - id: HI-001
+    category: instruction_override
+    severity: 0.9
+    description: Hindi (Devanagari) override / extraction
+    variants: [lower]
+    patterns:
+      - '(पिछले|पहले|पुराने|सभी|सारे|ऊपर\s*के|अपने)[^।\n]{0,25}(निर्देश|निर्देशों|नियम|नियमों|आदेश|आदेशों|हिदायत)[^।\n]{0,25}(अनदेखा|नज़रअंदाज़|नजरअंदाज|भूल|इग्नोर|मत\s*मानो|छोड़)'
+      - '(निर्देश|निर्देशों|नियम|नियमों)\s*(को\s*)?(अनदेखा|नजरअंदाज|नज़रअंदाज़|भूल\s*जाओ|इग्नोर)'
+      - '(सिस्टम\s*प्रॉम्प्ट|सिस्टम\s*प्रोम्प्ट|गुप्त\s*निर्देश|छिपे\s*हुए\s*निर्देश)'
+
+  - id: HIN-001
+    category: instruction_override
+    severity: 0.85
+    description: Hinglish (romanized Hindi) override / extraction
+    patterns:
+      - '\b(pichle|pichhle|pehle|purane|saare|sare|sabhi|sab|upar\s*ke|apne)\b[^.\n]{0,25}\b(instructions?|nirdesh|rules?|niyam|aadesh|hidayat)\b[^.\n]{0,25}\b(ignore|bhool|bhul|bhulo|bhula|chhodo|chodo|chhod|chod|nazarandaz|mat\s*mano|mat\s*maano)\b'
+      - '\b(instructions?|rules?|nirdesh|niyam)\s+(ko\s+)?(ignore|bhool|bhul|chhod|chod)\s*(karo|kar\s*do|kardo|do|jao|ja)\b'
+      - '\b(system\s*prompt|hidden\s+instructions?|apne\s+(rules|instructions))\s*(kya\s+hai|batao|dikhao|bata\s*do|dikha\s*do|bolo|likho)\b'
+      - '\b(tum|aap|tu)\s+(ab\s+)?(se\s+)?(dan|developer mode|unrestricted)\b'
+
+  - id: BN-001
+    category: instruction_override
+    severity: 0.9
+    description: Bengali override
+    variants: [lower]
+    patterns:
+      - '(আগের|পূর্বের|সব|সমস্ত)[^।\n]{0,25}(নির্দেশ|নির্দেশনা|নিয়ম)[^।\n]{0,25}(উপেক্ষা|ভুলে|অগ্রাহ্য|মানবে না)'
+      - '(সিস্টেম\s*প্রম্পট)'
+
+  # ---------------------------------------------------------------- concierge business rules
+  - id: BIZ-001
+    category: business_abuse
+    severity: 0.55
+    description: unrealistic booking quantities
+    patterns:
+      - '\b(book|hire|order|schedule|send|arrange|get)\b[^.\n]{0,20}\b([2-9]\d|\d{3,})\s+(plumbers?|electricians?|cleaners?|maids?|technicians?|carpenters?|painters?|cooks?|chefs?|drivers?|helpers?|mechanics?|gardeners?|pest\s*control|bookings?|appointments?|slots?)\b'
+
+  - id: BIZ-002
+    category: business_abuse
+    severity: 0.7
+    description: price manipulation
+    patterns:
+      - '\b(set|change|make|update|override|mark)\b[^.\n]{0,20}\b(price|amount|fee|charges?|cost|bill|total)\b[^.\n]{0,10}\b(to|as|=)\s*(₹|rs\.?|inr)?\s*(0|1|zero|free|nothing)\b'
+      - '\b(apply|give|add)\b[^.\n]{0,15}\b(100|9\d)\s*%\s*(discount|off|cashback)\b'
+      - '\bmark\b[^.\n]{0,20}\b(as\s+)?(paid|payment (done|complete|received))\b'
+      - '\b(skip|bypass|waive)\b[^.\n]{0,15}\b(payment|verification|otp|confirmation)\b'

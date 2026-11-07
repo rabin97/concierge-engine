@@ -1,0 +1,83 @@
+# Guard configuration. Bump `version` on every change; each decision logs it.
+version: "2026.11.07-1"
+rules_path: patterns.yaml
+
+thresholds:
+  flag: 0.45        # risk >= flag  -> flag_for_review
+  block: 0.80       # risk >= block -> block
+  judge_low: 0.30   # LLM judge runs only for borderline risk in [judge_low, judge_high)
+  judge_high: 0.80
+
+normalization:
+  max_chars: 4000
+  max_tokens: 1000
+  over_limit_policy: truncate   # truncate | block  (pick one, not both)
+  decode_base64: true
+  max_decode_depth: 2
+
+latency_budget_ms: 300
+cache_ttl_s: 300
+cache_size: 10000
+history_turns: 5
+flag_action: allow   # allow (proceed + queue for review) | hold (stop until reviewed)
+
+circuit_breaker:
+  failure_threshold: 5
+  cooldown_s: 30
+
+# Cheapest first. tier is set by the check class; timeouts and fail mode live here.
+checks:
+  hidden_content: {timeout_ms: 10, on_error: allow, weight: 1.0}
+  rules:          {timeout_ms: 50, on_error: block, weight: 1.0}   # cheap + critical: fail closed
+  multi_turn:     {timeout_ms: 30, on_error: allow, weight: 0.9}
+  classifier:     {timeout_ms: 150, on_error: flag, weight: 1.0}   # model down -> flag, don't block
+  llm_judge:      {timeout_ms: 1200, on_error: allow, weight: 1.0, params: {blend: 0.7}}
+
+untrusted:
+  flag: 0.35
+  block: 0.65
+  checks: [hidden_content, rules, classifier]
+
+pii:
+  enabled: true
+  ner_backend: heuristic        # heuristic | none
+  default_policy: {llm: mask, store: encrypt, min_score: 0.5}
+  fields:
+    PHONE:          {llm: mask, store: encrypt}   # booking service needs it -> reversible
+    EMAIL:          {llm: mask, store: encrypt}
+    ADDRESS:        {llm: mask, store: encrypt, min_score: 0.6}
+    PIN_CODE:       {llm: allow, store: plain}    # useful for service-area matching, low risk
+    PERSON:         {llm: mask, store: encrypt, min_score: 0.6}
+    UPI_ID:         {llm: mask, store: encrypt}
+    VEHICLE_NUMBER: {llm: mask, store: encrypt}
+    AADHAAR:        {llm: drop, store: none}      # never needed for a booking
+    PAN:            {llm: drop, store: none}
+    PASSPORT:       {llm: drop, store: none}
+    CREDIT_CARD:    {llm: drop, store: none}      # payments go through the PSP, not us
+    IFSC:           {llm: mask, store: hash}
+
+output:
+  leak_shingle_size: 6
+  leak_max_shingle_ratio: 0.15
+  leak_max_run_words: 12
+  foreign_pii: redact
+  foreign_pii_block_count: 3
+  # keyed by TaskTree step type; counts are per user, read from Postgres
+  actions:
+    BOOK_SERVICE:      {allowed: true, requires_confirmation: true, max_per_hour: 5, max_per_day: 20}
+    SEND_NOTIFICATION: {allowed: true, max_per_hour: 20}
+    SCHEDULE_REMINDER: {allowed: true, max_per_day: 20}
+
+messages:
+  block: "Sorry, I can't help with that request. Please describe the household task you need help with, for example \"book a plumber for tomorrow morning\"."
+  flag: null
+  length: "That message is too long. Please shorten it and describe the household task you need help with."
+  escalate: "It sounds like you might be going through a lot. You don't have to handle it alone: you can call Tele-MANAS on 14416 (free, 24x7) to talk to a counsellor."
+  unavailable: "Something went wrong on our side. Please try again in a moment."
+
+# Per-tenant overrides are deep-merged over the settings above.
+tenants:
+  strict_enterprise:
+    thresholds: {flag: 0.35, block: 0.65}
+    checks:
+      classifier: {on_error: block}

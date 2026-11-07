@@ -47,7 +47,9 @@ def _enqueue_step(conn: Connection, step_id: UUID, step_type: str) -> None:
 
 
 # ------------------------------------------------------------------ workflow lifecycle
-def create_workflow(user_id: UUID, idempotency_key: str, prompt: str) -> tuple[UUID, str, bool]:
+def create_workflow(user_id: UUID, idempotency_key: str, prompt: str,
+                    guard: dict | None = None) -> tuple[UUID, str, bool]:
+    """``prompt`` must already be screened (PII masked). ``guard`` is recorded on the CREATED event."""
     with tx() as conn:
         row = q(conn, """INSERT INTO workflows (id, user_id, client_request_id, prompt_redacted, status)
                          VALUES (:id, :u, :k, :p, 'PLANNING')
@@ -57,7 +59,7 @@ def create_workflow(user_id: UUID, idempotency_key: str, prompt: str) -> tuple[U
             existing = q(conn, "SELECT id, status FROM workflows WHERE user_id=:u AND client_request_id=:k",
                          u=user_id, k=idempotency_key).mappings().one()
             return existing["id"], existing["status"], False
-        add_event(conn, row["id"], "CREATED")
+        add_event(conn, row["id"], "CREATED", {"guard": guard} if guard else None)
         enqueue(conn, "plan_workflow", {"workflow_id": str(row["id"]), "queue": "intent"})
         return row["id"], row["status"], True
 

@@ -9,6 +9,7 @@ import re
 from typing import Protocol
 
 from app.config import settings
+from app.agents.guard import service as guard
 from app.schemas.intent import IntentExtraction
 
 SYSTEM_PROMPT = """You extract household-service intents from a user's message.
@@ -95,7 +96,7 @@ class BedrockLLM:
             user_text += "\n\nYour previous answer failed validation:\n- " + "\n- ".join(repair_errors)
         resp = self.client.converse(
             modelId=settings.bedrock_model_id,
-            system=[{"text": SYSTEM_PROMPT}],
+            system=[{"text": guard.system_prompt(SYSTEM_PROMPT)}],  # carries the canary
             messages=[{"role": "user", "content": [{"text": user_text}]}],
             toolConfig={"tools": [self.tool], "toolChoice": {"tool": {"name": "emit_intents"}}},
             inferenceConfig={"temperature": 0, "maxTokens": 800},

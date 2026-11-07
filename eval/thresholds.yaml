@@ -1,0 +1,11 @@
+# CI fails if any metric crosses these. Raise the floors as the guard improves.
+min:
+  precision: 0.95
+  recall: 0.90
+  mutation_recall: 0.85
+  # holdout_recall: 0.80   # enable once GUARD_LLM_JUDGE is on in production
+max:
+  false_positive_rate: 0.06
+  benign_block_rate: 0.02
+  latency_p95_ms: 50
+  holdout_false_positive_rate: 0.10

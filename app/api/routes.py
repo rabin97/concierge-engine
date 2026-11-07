@@ -4,11 +4,12 @@ import time
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response
+from fastapi.responses import PlainTextResponse
 
-from app.agents.guard import guard
 from app.api.deps import current_user
 from app.config import settings
 from app.db import q, tx
+from app.agents.guard import service as guard
 from app.schemas.api import AnswerRequest, IntentAccepted, IntentRequest, PreferenceIn, WorkflowView
 from app.services import preferences, webhooks
 from app.services import workflow_engine as wfe
@@ -21,10 +22,11 @@ router = APIRouter()
 
 # ------------------------------------------------------------------ intents & workflows
 @router.post("/v1/intents", status_code=202, response_model=IntentAccepted)
-def submit_intent(body: IntentRequest, response: Response, user=Depends(current_user),
+def submit_intent(body: IntentRequest, request: Request, response: Response, user=Depends(current_user),
                   idempotency_key: str = Header(..., alias="Idempotency-Key", min_length=8, max_length=100)):
-    g = guard(body.prompt)  # store only the redacted prompt
-    wf_id, status, created = wfe.create_workflow(user["id"], idempotency_key, g.redacted)
+    # Blocked prompts raise GuardBlocked (400) and never create a workflow. Only the masked text is stored.
+    g = guard.screen_user_text(body.prompt, user_id=user["id"], ip=_client_ip(request))
+    wf_id, status, created = wfe.create_workflow(user["id"], idempotency_key, g.safe_text, guard.event_data(g))
     if not created:
         response.status_code = 200
     return IntentAccepted(workflow_id=wf_id, status=status, poll=f"/v1/workflows/{wf_id}")
@@ -48,8 +50,9 @@ def confirm_workflow(workflow_id: UUID, user=Depends(current_user)):
 
 
 @router.post("/v1/workflows/{workflow_id}/answer")
-def answer_question(workflow_id: UUID, body: AnswerRequest, user=Depends(current_user)):
-    if not wfe.answer(workflow_id, user["id"], guard(body.answer).redacted):
+def answer_question(workflow_id: UUID, body: AnswerRequest, request: Request, user=Depends(current_user)):
+    g = guard.screen_user_text(body.answer, user_id=user["id"], ip=_client_ip(request))
+    if not wfe.answer(workflow_id, user["id"], g.safe_text):
         raise HTTPException(409, "workflow is not waiting for input")
     return {"status": "PLANNING"}
 
@@ -69,8 +72,10 @@ def get_preferences(user=Depends(current_user)):
 
 
 @router.put("/v1/users/me/preferences", status_code=201)
-def add_preference(body: PreferenceIn, user=Depends(current_user)):
-    return preferences.upsert_preference(user["id"], body.category, body.text, body.structured)
+def add_preference(body: PreferenceIn, request: Request, user=Depends(current_user)):
+    # Preference text is embedded (Bedrock) and retrieved into planning, so it is screened like a prompt.
+    g = guard.screen_user_text(body.text, user_id=user["id"], ip=_client_ip(request))
+    return preferences.upsert_preference(user["id"], body.category, g.safe_text, body.structured)
 
 
 # ------------------------------------------------------------------ webhooks
@@ -117,6 +122,16 @@ async def whatsapp_status(request: Request):
                           s=status, p=st.get("id"))
                     updates += 1
     return {"ok": True, "updates": updates}
+
+
+@router.get("/internal/guard/metrics", include_in_schema=False)
+def guard_metrics():
+    """Guard counters and latency for this process, in Prometheus text format."""
+    return PlainTextResponse(guard.get_pipeline().metrics.render_prometheus())
+
+
+def _client_ip(request: Request) -> str | None:
+    return request.client.host if request.client else None
 
 
 @router.get("/healthz")

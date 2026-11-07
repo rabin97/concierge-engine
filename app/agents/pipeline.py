@@ -1,7 +1,9 @@
 """The multi-agent pipeline that runs inside the `plan_workflow` Celery task.
 
-guard -> intent agent (LLM) -> schema check + repair -> context agent (pgvector) -> time resolver
--> planner -> rule validator -> clarifier
+intent agent (LLM) -> output guard -> schema check + repair -> context agent (pgvector) -> time resolver
+-> planner -> rule validator -> action guard -> clarifier
+
+The input guard already ran in the API: prompt_redacted is screened, PII-masked text.
 """
 import hashlib
 import json
@@ -11,12 +13,12 @@ from uuid import UUID
 
 from pydantic import ValidationError
 
-from app.agents.guard import guard
-from app.agents.llm import get_llm
+from app.agents.llm import SYSTEM_PROMPT, get_llm
 from app.agents.planner import PlanContext, compile_plan, validate_rules
 from app.agents.time_resolver import TimeResolutionError
 from app.config import settings
 from app.db import q, tx
+from app.agents.guard import service as guard
 from app.schemas.intent import IntentExtraction
 from app.services import preferences
 from app.services import workflow_engine as wfe
@@ -30,6 +32,7 @@ def extract_with_repair(prompt: str) -> IntentExtraction:
     errors: list[str] | None = None
     for attempt in range(MAX_REPAIRS + 1):
         raw = llm.extract(prompt, repair_errors=errors)
+        guard.screen_llm_output(raw, SYSTEM_PROMPT)  # canary / prompt leak: give up, don't repair
         try:
             return IntentExtraction.model_validate(raw)
         except ValidationError as e:
@@ -48,18 +51,14 @@ def plan_workflow(workflow_id: UUID, now: datetime | None = None) -> str:
     if wf is None or wf["status"] != "PLANNING":
         return wf["status"] if wf else "MISSING"  # duplicate delivery: already planned
 
-    g = guard(wf["prompt_redacted"])
-    if g.blocked_reason:
-        wfe.set_needs_input(workflow_id, f"I can't act on that: {g.blocked_reason}.")
-        return "NEEDS_INPUT"
-
+    prompt = wf["prompt_redacted"]
     try:
-        extraction = extract_with_repair(g.redacted)
+        extraction = extract_with_repair(prompt)
     except ValueError:
         wfe.set_needs_input(workflow_id, "Sorry, I didn't get that. Could you say what service and when?")
         return "NEEDS_INPUT"
 
-    prefs = preferences.retrieve(wf["user_id"], g.redacted)
+    prefs = preferences.retrieve(wf["user_id"], prompt)
     flags: dict[str, bool] = {}
     for p in prefs:
         flags.update({k: v for k, v in p["structured"].items() if isinstance(v, bool)})
@@ -82,6 +81,8 @@ def plan_workflow(workflow_id: UUID, now: datetime | None = None) -> str:
         return "NEEDS_INPUT"
 
     errors = validate_rules(outcome.tree, now)
+    if not errors:  # may also force requires_confirmation, so it runs before the plan is hashed
+        errors = guard.review_plan(wf["user_id"], workflow_id, outcome.tree).errors
     if errors:
         wfe.set_needs_input(workflow_id, "I can't schedule that: " + "; ".join(errors) + ".")
         return "NEEDS_INPUT"

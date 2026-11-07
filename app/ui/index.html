@@ -1,0 +1,770 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Concierge Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f7f7f5;
+  --panel: #ffffff;
+  --sunken: #f1f1ee;
+  --line: #e4e4df;
+  --line-strong: #d4d4cd;
+  --text: #1c1c1a;
+  --muted: #6b6b66;
+  --faint: #9a9a93;
+  --accent: #2f5d50;
+  --accent-ink: #ffffff;
+  --accent-soft: #e6efeb;
+  --danger: #a33a2c;
+  --danger-soft: #f8e9e6;
+  --warn: #8a5a00;
+  --warn-soft: #fbf1dc;
+  --info: #2c5282;
+  --info-soft: #e7eef8;
+  --ok: #2f6b3a;
+  --ok-soft: #e5f1e6;
+  --radius: 8px;
+  --shadow: 0 1px 2px rgba(20,20,15,.04), 0 1px 1px rgba(20,20,15,.03);
+  --sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #141413;
+    --panel: #1b1b1a;
+    --sunken: #222220;
+    --line: #2c2c29;
+    --line-strong: #3a3a36;
+    --text: #ebebe6;
+    --muted: #a0a099;
+    --faint: #706f69;
+    --accent: #7fb8a4;
+    --accent-ink: #10201b;
+    --accent-soft: #1f2e29;
+    --danger: #e08a7c;
+    --danger-soft: #2e1d1a;
+    --warn: #e0b45c;
+    --warn-soft: #2d2617;
+    --info: #8fb2e0;
+    --info-soft: #1b2432;
+    --ok: #8cc79a;
+    --ok-soft: #1c2a1f;
+    --shadow: none;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.5 var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+code, .mono { font-family: var(--mono); font-size: 12.5px; }
+
+/* ---------- layout ---------- */
+.topbar {
+  height: 52px; display: flex; align-items: center; gap: 16px;
+  padding: 0 20px; border-bottom: 1px solid var(--line); background: var(--panel);
+  position: sticky; top: 0; z-index: 5;
+}
+.brand { font-weight: 600; letter-spacing: -.01em; display: flex; align-items: center; gap: 8px; }
+.brand .mark { width: 18px; height: 18px; border-radius: 5px; background: var(--accent); }
+.topbar .spacer { flex: 1; }
+.health { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); display: inline-block; }
+.dot.ok { background: #3c9a52; }
+.dot.bad { background: #c2483a; }
+.userbox { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.userbox input { width: 300px; }
+
+.shell { display: grid; grid-template-columns: 300px 1fr; min-height: calc(100vh - 52px); }
+aside { border-right: 1px solid var(--line); background: var(--panel); padding: 16px; display: flex; flex-direction: column; gap: 24px; }
+main { padding: 24px 28px 64px; max-width: 1040px; width: 100%; }
+
+@media (max-width: 860px) {
+  .shell { grid-template-columns: 1fr; }
+  aside { border-right: 0; border-bottom: 1px solid var(--line); }
+  main { padding: 16px; }
+  .userbox input { width: 160px; }
+  .userbox label { display: none; }
+}
+
+/* ---------- controls ---------- */
+.input, select.input, textarea.input {
+  width: 100%; border: 1px solid var(--line-strong); background: var(--panel);
+  border-radius: 6px; padding: 7px 10px; outline: none; transition: border-color .12s, box-shadow .12s;
+}
+.input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+textarea.input { resize: vertical; min-height: 84px; line-height: 1.5; }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 32px; padding: 0 12px; border-radius: 6px; border: 1px solid var(--line-strong);
+  background: var(--panel); cursor: pointer; font-weight: 500; font-size: 13px; white-space: nowrap;
+}
+.btn:hover { background: var(--sunken); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.primary:hover { filter: brightness(1.06); }
+.btn.danger { color: var(--danger); }
+.btn.danger:hover { background: var(--danger-soft); }
+.btn.ghost { border-color: transparent; background: transparent; color: var(--muted); }
+.btn.ghost:hover { background: var(--sunken); color: var(--text); }
+.btn.sm { height: 26px; padding: 0 8px; font-size: 12px; }
+
+/* ---------- sidebar ---------- */
+.side-h { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.side-h h3 { margin: 0; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.list { display: flex; flex-direction: column; gap: 2px; }
+.list-item {
+  display: block; width: 100%; text-align: left; border: 0; background: transparent; cursor: pointer;
+  padding: 8px 10px; border-radius: 6px;
+}
+.list-item:hover { background: var(--sunken); }
+.list-item.active { background: var(--accent-soft); }
+.list-item .t { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.list-item .m { font-size: 12px; color: var(--muted); display: flex; gap: 8px; align-items: center; margin-top: 2px; }
+.empty { color: var(--faint); font-size: 13px; padding: 6px 2px; }
+
+.pref { padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; font-size: 13px; }
+.pref + .pref { margin-top: 6px; }
+.pref .cat { font-size: 11px; font-weight: 600; color: var(--muted); letter-spacing: .03em; }
+.pref-form { display: grid; gap: 6px; margin-top: 10px; }
+.pref-form .row { display: flex; gap: 6px; }
+.pref-form select { width: 110px; flex: none; }
+
+/* ---------- cards ---------- */
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+.card + .card { margin-top: 16px; }
+.card-h { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.card-h h2 { margin: 0; font-size: 14px; font-weight: 600; }
+.card-b { padding: 16px; }
+.hint { font-size: 12px; color: var(--muted); }
+
+.composer .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.chip {
+  border: 1px solid var(--line); background: var(--sunken); color: var(--muted);
+  border-radius: 999px; padding: 3px 10px; font-size: 12px; cursor: pointer;
+}
+.chip:hover { color: var(--text); border-color: var(--line-strong); }
+.composer .foot { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; gap: 12px; }
+
+/* ---------- status badge ---------- */
+.badge {
+  display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px; border-radius: 4px;
+  font-size: 11.5px; font-weight: 600; letter-spacing: .02em; background: var(--sunken); color: var(--muted);
+  white-space: nowrap;
+}
+.badge.ok { background: var(--ok-soft); color: var(--ok); }
+.badge.warn { background: var(--warn-soft); color: var(--warn); }
+.badge.info { background: var(--info-soft); color: var(--info); }
+.badge.bad { background: var(--danger-soft); color: var(--danger); }
+.badge .pulse { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .25; } }
+
+/* ---------- workflow detail ---------- */
+.wf-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 16px; }
+.wf-head h1 { font-size: 18px; margin: 0 0 4px; font-weight: 600; letter-spacing: -.01em; }
+.wf-head .id { color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.wf-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.callout { margin: 0 16px 16px; padding: 12px 14px; border-radius: 6px; border: 1px solid; font-size: 13.5px; }
+.callout.warn { background: var(--warn-soft); border-color: color-mix(in srgb, var(--warn) 25%, transparent); }
+.callout.info { background: var(--info-soft); border-color: color-mix(in srgb, var(--info) 25%, transparent); }
+.callout .q { font-weight: 500; margin-bottom: 8px; }
+.callout form { display: flex; gap: 8px; }
+
+.tabs { display: flex; gap: 2px; padding: 0 12px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+.tab {
+  border: 0; background: none; padding: 10px 10px; cursor: pointer; color: var(--muted); font-weight: 500; font-size: 13px;
+  border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap;
+}
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--text); border-bottom-color: var(--text); }
+.tab .n { color: var(--faint); font-weight: 400; margin-left: 4px; }
+
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 720px) { .grid2 { grid-template-columns: 1fr; } }
+
+.step {
+  border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; display: grid;
+  grid-template-columns: 28px 1fr auto; gap: 12px; align-items: start;
+}
+.step + .step { margin-top: 8px; }
+.step .num {
+  width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--line-strong);
+  display: flex; align-items: center; justify-content: center; font-size: 12px; color: var(--muted);
+}
+.step .title { font-weight: 500; }
+.step .sub { color: var(--muted); font-size: 13px; }
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin-top: 8px; font-size: 13px; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; }
+.err { color: var(--danger); font-size: 12.5px; margin-top: 6px; font-family: var(--mono); }
+
+.timeline { list-style: none; margin: 0; padding: 0; position: relative; }
+.timeline li { display: grid; grid-template-columns: 76px 14px 1fr; gap: 10px; padding: 6px 0; font-size: 13px; }
+.timeline .time { color: var(--muted); font-family: var(--mono); font-size: 12px; text-align: right; padding-top: 1px; }
+.timeline .rail { position: relative; }
+.timeline .rail::before { content: ""; position: absolute; left: 6px; top: 0; bottom: -12px; width: 1px; background: var(--line); }
+.timeline li:last-child .rail::before { display: none; }
+.timeline .rail .d { position: absolute; left: 2px; top: 6px; width: 9px; height: 9px; border-radius: 50%; background: var(--panel); border: 2px solid var(--faint); }
+.timeline .rail .d.ok { border-color: #3c9a52; }
+.timeline .rail .d.bad { border-color: #c2483a; }
+.timeline .rail .d.info { border-color: var(--info); }
+.timeline .ev { font-weight: 500; }
+.timeline .data { color: var(--muted); font-family: var(--mono); font-size: 12px; word-break: break-word; }
+
+table.t { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.t th { text-align: left; font-weight: 500; color: var(--muted); font-size: 12px; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+table.t td { padding: 8px; border-bottom: 1px solid var(--line); }
+table.t tr:last-child td { border-bottom: 0; }
+
+pre.json {
+  margin: 0; background: var(--sunken); border: 1px solid var(--line); border-radius: 6px; padding: 12px;
+  overflow: auto; max-height: 520px; font-family: var(--mono); font-size: 12px; line-height: 1.55;
+}
+.placeholder { text-align: center; padding: 56px 16px; color: var(--muted); }
+.placeholder h2 { color: var(--text); font-size: 15px; margin: 0 0 4px; font-weight: 600; }
+
+/* ---------- request log ---------- */
+.log { font-family: var(--mono); font-size: 12px; max-height: 260px; overflow: auto; }
+.log .row { display: grid; grid-template-columns: 52px 44px 1fr 38px; gap: 8px; padding: 4px 0; border-bottom: 1px dashed var(--line); }
+.log .row:last-child { border-bottom: 0; }
+.log .m { font-weight: 600; }
+.log .s.ok { color: var(--ok); }
+.log .s.bad { color: var(--danger); }
+.log .p { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
+
+/* ---------- toast ---------- */
+.toasts { position: fixed; right: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 20; }
+.toast {
+  background: var(--text); color: var(--bg); padding: 10px 14px; border-radius: 6px; font-size: 13px;
+  max-width: 360px; box-shadow: 0 6px 20px rgba(0,0,0,.18); animation: in .15s ease-out;
+}
+.toast.bad { background: var(--danger); color: #fff; }
+@keyframes in { from { transform: translateY(6px); opacity: 0; } }
+
+.copy { border: 0; background: none; color: var(--faint); cursor: pointer; padding: 2px; border-radius: 4px; display: inline-flex; }
+.copy:hover { color: var(--text); background: var(--sunken); }
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><span class="mark"></span>Concierge Console</div>
+  <span class="health" id="health"><span class="dot"></span><span>Checking API…</span></span>
+  <div class="spacer"></div>
+  <div class="userbox">
+    <label for="userId">User</label>
+    <input id="userId" class="input mono" spellcheck="false">
+  </div>
+</header>
+
+<div class="shell">
+  <aside>
+    <section>
+      <div class="side-h">
+        <h3>Requests</h3>
+        <button class="btn ghost sm" id="clearHistory" title="Forget the local list (does not delete anything on the server)">Clear</button>
+      </div>
+      <div class="list" id="history"></div>
+    </section>
+
+    <section>
+      <div class="side-h">
+        <h3>Preferences</h3>
+        <button class="btn ghost sm" id="reloadPrefs">Reload</button>
+      </div>
+      <div id="prefs"></div>
+      <form class="pref-form" id="prefForm">
+        <div class="row">
+          <select class="input" id="prefCat">
+            <option>HEALTH</option><option>SCHEDULE</option><option>PRODUCT</option><option>CHANNEL</option><option>OTHER</option>
+          </select>
+          <input class="input" id="prefText" placeholder="e.g. Allergic to harsh chemicals" minlength="3" maxlength="300" required>
+        </div>
+        <button class="btn" type="submit">Add preference</button>
+      </form>
+    </section>
+
+    <section>
+      <div class="side-h">
+        <h3>Request log</h3>
+        <button class="btn ghost sm" id="clearLog">Clear</button>
+      </div>
+      <div class="log" id="log"><div class="empty">No calls yet.</div></div>
+    </section>
+  </aside>
+
+  <main>
+    <div class="card composer">
+      <div class="card-h">
+        <h2>New request</h2>
+        <span class="hint">POST /v1/intents</span>
+      </div>
+      <form class="card-b" id="intentForm">
+        <textarea class="input" id="prompt" placeholder="What do you need done?" minlength="3" maxlength="1000" required>Schedule a deep cleaning service for Saturday morning and remind me on Friday night</textarea>
+        <div class="chips" id="examples"></div>
+        <div class="foot">
+          <span class="hint mono" id="idemHint"></span>
+          <div style="display:flex; gap:8px">
+            <button class="btn" type="button" id="resend" title="Send again with the same Idempotency-Key. Should return the same workflow.">Resend same key</button>
+            <button class="btn primary" type="submit" id="submitBtn">Submit</button>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <div class="card" id="detail">
+      <div class="placeholder">
+        <h2>No request selected</h2>
+        <div>Submit one above, or pick one from the list.</div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="toasts" id="toasts"></div>
+
+<script>
+(() => {
+  const DEFAULT_USER = "11111111-1111-1111-1111-111111111111";
+  const TERMINAL = new Set(["COMPLETED", "FAILED", "CANCELLED"]);
+  const EXAMPLES = [
+    "Schedule a deep cleaning service for Saturday morning and remind me on Friday night",
+    "Book kitchen cleaning tomorrow afternoon",
+    "Get pest control done next Sunday evening and WhatsApp me the day before",
+    "Need a plumber",
+    "Book bathroom cleaning",
+  ];
+  const SERVICE_NAMES = {
+    DEEP_CLEANING: "Deep cleaning", KITCHEN_CLEANING: "Kitchen cleaning", BATHROOM_CLEANING: "Bathroom cleaning",
+    PEST_CONTROL: "Pest control", PLUMBING: "Plumbing",
+  };
+
+  const $ = (s, el = document) => el.querySelector(s);
+  const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+  };
+
+  const state = {
+    user: store.get("cc.user", DEFAULT_USER),
+    history: store.get("cc.history", []),     // [{id, prompt, status, at}]
+    current: null,
+    view: null,
+    tab: store.get("cc.tab", "plan"),
+    pollTimer: null,
+    lastKey: null,
+    lastPrompt: null,
+    log: [],
+  };
+
+  // ---------------------------------------------------------------- api
+  async function api(method, path, { body, headers = {} } = {}) {
+    const h = { "X-User-Id": state.user, ...headers };
+    if (body !== undefined) h["Content-Type"] = "application/json";
+    const t0 = performance.now();
+    let res, data;
+    try {
+      res = await fetch(path, { method, headers: h, body: body === undefined ? undefined : JSON.stringify(body) });
+      const text = await res.text();
+      try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+    } catch (e) {
+      addLog(method, path, "ERR", 0);
+      throw new Error("Can't reach the API. Is it running on this host?");
+    }
+    addLog(method, path, res.status, Math.round(performance.now() - t0));
+    if (!res.ok) {
+      let msg = data?.detail ?? data ?? res.statusText;
+      if (Array.isArray(msg)) msg = msg.map((d) => `${(d.loc || []).slice(1).join(".")}: ${d.msg}`).join("; ");
+      const err = new Error(`${res.status} — ${typeof msg === "string" ? msg : JSON.stringify(msg)}`);
+      err.status = res.status;
+      throw err;
+    }
+    return { status: res.status, data };
+  }
+
+  function addLog(method, path, status, ms) {
+    // Polling GETs flood the log; collapse repeats of the same call.
+    const last = state.log[0];
+    if (last && last.method === method && last.path === path && last.status === status && method === "GET") {
+      last.count = (last.count || 1) + 1; last.ms = ms;
+    } else {
+      state.log.unshift({ method, path, status, ms, at: new Date() });
+      state.log = state.log.slice(0, 60);
+    }
+    renderLog();
+  }
+
+  function renderLog() {
+    const el = $("#log");
+    if (!state.log.length) { el.innerHTML = '<div class="empty">No calls yet.</div>'; return; }
+    el.innerHTML = state.log.map((r) => {
+      const ok = typeof r.status === "number" && r.status < 400;
+      return `<div class="row" title="${esc(r.at.toLocaleTimeString())} · ${r.ms} ms">
+        <span class="m">${r.method}</span>
+        <span class="s ${ok ? "ok" : "bad"}">${r.status}</span>
+        <span class="p">${esc(r.path.replace(/[0-9a-f-]{36}/g, (m) => m.slice(0, 8) + "…"))}</span>
+        <span class="hint">${r.count ? "×" + r.count : ""}</span>
+      </div>`;
+    }).join("");
+  }
+
+  // ---------------------------------------------------------------- ui helpers
+  function toast(msg, bad = false) {
+    const t = document.createElement("div");
+    t.className = "toast" + (bad ? " bad" : "");
+    t.textContent = msg;
+    $("#toasts").appendChild(t);
+    setTimeout(() => t.remove(), bad ? 6000 : 3000);
+  }
+
+  function badge(status) {
+    const s = String(status || "").toUpperCase();
+    const map = {
+      COMPLETED: "ok", SUCCEEDED: "ok", DELIVERED: "ok", READ: "ok", CONFIRMED: "ok", SENT: "ok",
+      AWAITING_CONFIRMATION: "warn", NEEDS_INPUT: "warn", RETRYING: "warn", WAITING_EXTERNAL: "info",
+      PLANNING: "info", RUNNING: "info", QUEUED: "info", SCHEDULED: "info", PENDING: "",
+      FAILED: "bad", CANCELLED: "bad", BOUNCED: "bad",
+    };
+    const live = ["PLANNING", "RUNNING", "QUEUED", "WAITING_EXTERNAL", "RETRYING"].includes(s);
+    const label = s.replace(/_/g, " ").toLowerCase().replace(/^\w/, (c) => c.toUpperCase());
+    return `<span class="badge ${map[s] ?? ""}">${live ? '<span class="pulse"></span>' : ""}${esc(label || "—")}</span>`;
+  }
+
+  function fmtTime(iso, withDay = true) {
+    if (!iso) return "—";
+    const d = new Date(iso);
+    if (isNaN(d)) return esc(iso);
+    return d.toLocaleString(undefined, withDay
+      ? { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }
+      : { hour: "numeric", minute: "2-digit" });
+  }
+  function fmtWindow(w) {
+    if (!w) return "—";
+    const a = new Date(w.start), b = new Date(w.end);
+    if (isNaN(a) || isNaN(b)) return esc(`${w.start} → ${w.end}`);
+    const same = a.toDateString() === b.toDateString();
+    return `${fmtTime(w.start)} – ${same ? fmtTime(w.end, false) : fmtTime(w.end)}`;
+  }
+  function relTime(iso) {
+    const s = Math.round((Date.now() - new Date(iso)) / 1000);
+    if (s < 60) return "just now";
+    if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+    if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+    return new Date(iso).toLocaleDateString();
+  }
+  const copyIcon = '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="9" height="9" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg>';
+  function copyBtn(text) { return `<button class="copy" data-copy="${esc(text)}" title="Copy">${copyIcon}</button>`; }
+
+  // ---------------------------------------------------------------- health
+  async function checkHealth() {
+    const el = $("#health");
+    try {
+      const r = await fetch("/healthz");
+      el.innerHTML = r.ok ? '<span class="dot ok"></span><span>API up</span>' : `<span class="dot bad"></span><span>API ${r.status}</span>`;
+    } catch {
+      el.innerHTML = '<span class="dot bad"></span><span>API unreachable</span>';
+    }
+  }
+
+  // ---------------------------------------------------------------- history
+  function saveHistory() { store.set("cc.history", state.history.slice(0, 40)); }
+  function upsertHistory(id, patch) {
+    const i = state.history.findIndex((h) => h.id === id);
+    if (i === -1) state.history.unshift({ id, at: new Date().toISOString(), ...patch });
+    else Object.assign(state.history[i], patch);
+    saveHistory(); renderHistory();
+  }
+  function renderHistory() {
+    const el = $("#history");
+    const mine = state.history.filter((h) => !h.user || h.user === state.user);
+    if (!mine.length) { el.innerHTML = '<div class="empty">Nothing submitted yet.</div>'; return; }
+    el.innerHTML = mine.map((h) => `
+      <button class="list-item ${h.id === state.current ? "active" : ""}" data-open="${h.id}">
+        <div class="t">${esc(h.prompt || h.id)}</div>
+        <div class="m">${badge(h.status)}<span>${relTime(h.at)}</span></div>
+      </button>`).join("");
+  }
+
+  // ---------------------------------------------------------------- preferences
+  async function loadPrefs() {
+    const el = $("#prefs");
+    try {
+      const { data } = await api("GET", "/v1/users/me/preferences");
+      el.innerHTML = data.length
+        ? data.map((p) => `<div class="pref"><div class="cat">${esc(p.category)}</div>${esc(p.text)}</div>`).join("")
+        : '<div class="empty">None saved. The planner reads these when building a plan.</div>';
+    } catch (e) {
+      el.innerHTML = `<div class="empty">${esc(e.status === 401 ? "Unknown user ID." : e.message)}</div>`;
+    }
+  }
+  $("#prefForm").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const text = $("#prefText").value.trim();
+    try {
+      await api("PUT", "/v1/users/me/preferences", { body: { category: $("#prefCat").value, text } });
+      $("#prefText").value = "";
+      toast("Preference saved");
+      loadPrefs();
+    } catch (e) { toast(e.message, true); }
+  });
+
+  // ---------------------------------------------------------------- intents
+  async function submitIntent(prompt, key) {
+    const btn = $("#submitBtn");
+    btn.disabled = true;
+    try {
+      const { status, data } = await api("POST", "/v1/intents", { body: { prompt }, headers: { "Idempotency-Key": key } });
+      state.lastKey = key; state.lastPrompt = prompt;
+      $("#idemHint").textContent = `Idempotency-Key ${key.slice(0, 8)}…`;
+      if (status === 200) toast("Same key seen before — the server returned the existing workflow");
+      upsertHistory(data.workflow_id, { prompt, status: data.status, user: state.user });
+      openWorkflow(data.workflow_id);
+    } catch (e) { toast(e.message, true); }
+    finally { btn.disabled = false; }
+  }
+  $("#intentForm").addEventListener("submit", (ev) => {
+    ev.preventDefault();
+    const p = $("#prompt").value.trim();
+    if (p.length < 3) return toast("Prompt must be at least 3 characters", true);
+    submitIntent(p, crypto.randomUUID());
+  });
+  $("#resend").addEventListener("click", () => {
+    if (!state.lastKey) return toast("Submit something first", true);
+    submitIntent(state.lastPrompt, state.lastKey);
+  });
+  $("#examples").innerHTML = EXAMPLES.map((e) => `<button type="button" class="chip" data-ex="${esc(e)}">${esc(e.length > 44 ? e.slice(0, 42) + "…" : e)}</button>`).join("");
+
+  // ---------------------------------------------------------------- workflow
+  function openWorkflow(id) {
+    state.current = id;
+    state.view = null;
+    renderHistory();
+    $("#detail").innerHTML = '<div class="placeholder"><div>Loading…</div></div>';
+    refresh();
+  }
+
+  async function refresh() {
+    clearTimeout(state.pollTimer);
+    const id = state.current;
+    if (!id) return;
+    try {
+      const { data } = await api("GET", `/v1/workflows/${id}`);
+      if (id !== state.current) return;
+      state.view = data;
+      upsertHistory(id, { status: data.status });
+      renderDetail();
+      if (!TERMINAL.has(data.status)) state.pollTimer = setTimeout(refresh, data.status === "AWAITING_CONFIRMATION" || data.status === "NEEDS_INPUT" ? 4000 : 1500);
+    } catch (e) {
+      if (id !== state.current) return;
+      $("#detail").innerHTML = `<div class="placeholder"><h2>Couldn't load this request</h2><div>${esc(e.message)}</div></div>`;
+    }
+  }
+
+  async function act(kind) {
+    const id = state.current;
+    try {
+      const { data } = await api("POST", `/v1/workflows/${id}/${kind}`);
+      if (kind === "confirm") toast(data.changed ? "Confirmed — booking queued" : `Nothing changed (status: ${data.status})`);
+      if (kind === "cancel") toast(`Status: ${data.status}`);
+    } catch (e) { toast(e.message, true); }
+    refresh();
+  }
+
+  function stepDetails(p) {
+    if (!p) return "";
+    const rows = [];
+    if (p.kind === "BOOK_SERVICE") {
+      rows.push(["Service", SERVICE_NAMES[p.service_code] || p.service_code]);
+      rows.push(["Window", fmtWindow(p.window)]);
+      rows.push(["Address", `<span class="mono">${esc(String(p.address_id).slice(0, 8))}…</span>`]);
+      const c = Object.entries(p.constraints || {}).filter(([, v]) => v).map(([k]) => k.replace(/_/g, " "));
+      if (c.length) rows.push(["Constraints", esc(c.join(", "))]);
+      rows.push(["Needs confirmation", p.requires_confirmation ? "Yes" : "No"]);
+    } else if (p.kind === "SCHEDULE_REMINDER") {
+      rows.push(["Fires at", fmtTime(p.fire_at)]);
+      rows.push(["Channels", esc((p.channels || []).join(", "))]);
+      rows.push(["Template", `<span class="mono">${esc(p.template)}</span>`]);
+    } else if (p.kind === "SEND_NOTIFICATION") {
+      rows.push(["Channels", esc((p.channels || []).join(", "))]);
+      rows.push(["Template", `<span class="mono">${esc(p.template)}</span>`]);
+    }
+    return `<dl class="kv">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${typeof v === "string" && !v.startsWith("<") ? esc(v) : v}</dd>`).join("")}</dl>`;
+  }
+
+  function stepTitle(s) {
+    const p = s.params || {};
+    if (p.kind === "BOOK_SERVICE") return `Book ${(SERVICE_NAMES[p.service_code] || p.service_code || "service").toLowerCase()}`;
+    if (p.kind === "SCHEDULE_REMINDER") return "Schedule reminder";
+    if (p.kind === "SEND_NOTIFICATION") return "Send notification";
+    return s.type;
+  }
+
+  function renderPlan(v) {
+    const planSteps = v.plan?.steps || [];
+    const runtime = Object.fromEntries((v.steps || []).map((s) => [s.step_key, s]));
+    if (!planSteps.length) {
+      if (v.status === "PLANNING") return '<div class="empty">Planner is working on it…</div>';
+      return '<div class="empty">No plan stored for this request.</div>';
+    }
+    return planSteps.map((s, i) => {
+      const rt = runtime[s.step_key];
+      const deps = s.depends_on?.length ? `after ${s.depends_on.join(", ")}` : "runs first";
+      return `<div class="step">
+        <div class="num">${i + 1}</div>
+        <div>
+          <div class="title">${esc(stepTitle(s))}</div>
+          <div class="sub"><span class="mono">${esc(s.step_key)}</span> · ${esc(deps)}${s.run_condition === "ALWAYS" ? " · always runs" : ""}${rt ? ` · attempt ${rt.attempt}` : ""}</div>
+          ${stepDetails(s.params)}
+          ${rt?.last_error ? `<div class="err">${esc(rt.last_error)}</div>` : ""}
+        </div>
+        <div>${rt ? badge(rt.status) : '<span class="badge">Not started</span>'}</div>
+      </div>`;
+    }).join("");
+  }
+
+  function eventTone(t) {
+    if (/FAILED|CANCELLED/.test(t)) return "bad";
+    if (/SUCCEEDED|COMPLETED|CONFIRMED|PLANNED/.test(t)) return "ok";
+    if (/RETRY|NEEDS_INPUT/.test(t)) return "";
+    return "info";
+  }
+  function renderEvents(v) {
+    if (!v.events?.length) return '<div class="empty">No events yet.</div>';
+    return `<ul class="timeline">${v.events.map((e) => {
+      const data = e.data && Object.keys(e.data).length ? JSON.stringify(e.data) : "";
+      const label = e.type.replace(/_/g, " ").toLowerCase().replace(/^\w/, (c) => c.toUpperCase());
+      return `<li>
+        <span class="time">${new Date(e.at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
+        <span class="rail"><span class="d ${eventTone(e.type)}"></span></span>
+        <div><div class="ev">${esc(label)}</div>${data ? `<div class="data">${esc(data)}</div>` : ""}</div>
+      </li>`;
+    }).join("")}</ul>`;
+  }
+
+  function renderDelivery(v) {
+    const b = v.booking;
+    const booking = b
+      ? `<dl class="kv"><dt>Vendor</dt><dd>${esc(b.vendor)}</dd><dt>Reference</dt><dd class="mono">${esc(b.vendor_ref || "—")}</dd><dt>Status</dt><dd>${badge(b.status)}</dd></dl>`
+      : '<div class="empty">No booking yet. It is created after you confirm.</div>';
+    const notes = v.notifications?.length
+      ? `<table class="t"><thead><tr><th>Step</th><th>Channel</th><th>Template</th><th>Status</th></tr></thead><tbody>${
+          v.notifications.map((n) => `<tr><td class="mono">${esc(n.step_key)}</td><td>${esc(n.channel)}</td><td class="mono">${esc(n.template)}</td><td>${badge(n.status)}</td></tr>`).join("")
+        }</tbody></table>`
+      : '<div class="empty">Nothing sent yet. Reminders go out when they are due.</div>';
+    return `<div class="grid2">
+      <div><div class="side-h"><h3>Booking</h3></div>${booking}</div>
+      <div><div class="side-h"><h3>Notifications</h3></div>${notes}</div>
+    </div>`;
+  }
+
+  function renderDetail() {
+    const v = state.view;
+    if (!v) return;
+    const s = v.status;
+    const canConfirm = s === "AWAITING_CONFIRMATION";
+    const canCancel = !TERMINAL.has(s);
+    const prompt = state.history.find((h) => h.id === v.workflow_id)?.prompt;
+    const tabs = [
+      ["plan", "Plan", v.plan?.steps?.length || 0],
+      ["activity", "Activity", v.events?.length || 0],
+      ["delivery", "Booking & messages", (v.notifications?.length || 0) + (v.booking ? 1 : 0)],
+      ["raw", "Raw JSON", null],
+    ];
+    if (!tabs.some(([k]) => k === state.tab)) state.tab = "plan";
+    const body = { plan: renderPlan, activity: renderEvents, delivery: renderDelivery, raw: (x) => `<pre class="json">${esc(JSON.stringify(x, null, 2))}</pre>` }[state.tab](v);
+
+    // Keep the answer box intact while polling so typing isn't interrupted.
+    const prevAnswer = $("#answerInput")?.value ?? "";
+    const hadFocus = document.activeElement?.id === "answerInput";
+
+    $("#detail").innerHTML = `
+      <div class="wf-head">
+        <div style="min-width:0">
+          <h1>${esc(v.summary || prompt || "Request")}</h1>
+          <div class="id"><span class="mono">${esc(v.workflow_id)}</span>${copyBtn(v.workflow_id)}</div>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:10px">
+          ${badge(s)}
+          <div class="wf-actions">
+            <button class="btn ghost sm" data-act="refresh">Refresh</button>
+            ${canCancel ? '<button class="btn danger sm" data-act="cancel">Cancel</button>' : ""}
+            ${canConfirm ? '<button class="btn primary sm" data-act="confirm">Confirm booking</button>' : ""}
+          </div>
+        </div>
+      </div>
+      ${s === "NEEDS_INPUT" ? `
+        <div class="callout warn">
+          <div class="q">${esc(v.question || "The planner needs more information.")}</div>
+          <form id="answerForm"><input class="input" id="answerInput" placeholder="Your answer" maxlength="500" required><button class="btn primary" type="submit">Send</button></form>
+        </div>` : ""}
+      ${canConfirm ? `<div class="callout info">Review the plan below. Nothing is booked until you confirm.</div>` : ""}
+      ${prompt && v.summary ? `<div class="hint" style="padding:0 16px 12px">Asked: “${esc(prompt)}”</div>` : ""}
+      <div class="tabs">${tabs.map(([k, l, n]) => `<button class="tab ${k === state.tab ? "active" : ""}" data-tab="${k}">${l}${n != null ? `<span class="n">${n}</span>` : ""}</button>`).join("")}</div>
+      <div class="card-b">${body}</div>`;
+
+    const ai = $("#answerInput");
+    if (ai) { ai.value = prevAnswer; if (hadFocus) { ai.focus(); ai.setSelectionRange(ai.value.length, ai.value.length); } }
+  }
+
+  // ---------------------------------------------------------------- events
+  document.addEventListener("click", async (ev) => {
+    const t = ev.target.closest("[data-open],[data-act],[data-tab],[data-ex],[data-copy]");
+    if (!t) return;
+    if (t.dataset.open) openWorkflow(t.dataset.open);
+    else if (t.dataset.act === "refresh") refresh();
+    else if (t.dataset.act === "confirm") act("confirm");
+    else if (t.dataset.act === "cancel") { if (confirm("Cancel this request? Any booking will be cancelled with the vendor.")) act("cancel"); }
+    else if (t.dataset.tab) { state.tab = t.dataset.tab; store.set("cc.tab", state.tab); renderDetail(); }
+    else if (t.dataset.ex) { $("#prompt").value = t.dataset.ex; $("#prompt").focus(); }
+    else if (t.dataset.copy) { try { await navigator.clipboard.writeText(t.dataset.copy); toast("Copied"); } catch {} }
+  });
+
+  document.addEventListener("submit", async (ev) => {
+    if (ev.target.id !== "answerForm") return;
+    ev.preventDefault();
+    const answer = $("#answerInput").value.trim();
+    try {
+      await api("POST", `/v1/workflows/${state.current}/answer`, { body: { answer } });
+      $("#answerInput").value = "";
+      toast("Answer sent — planning again");
+    } catch (e) { toast(e.message, true); }
+    refresh();
+  });
+
+  $("#userId").value = state.user;
+  $("#userId").addEventListener("change", () => {
+    const v = $("#userId").value.trim();
+    if (!/^[0-9a-f-]{36}$/i.test(v)) { toast("User ID must be a UUID", true); $("#userId").value = state.user; return; }
+    state.user = v; store.set("cc.user", v);
+    state.current = null; state.view = null; clearTimeout(state.pollTimer);
+    $("#detail").innerHTML = '<div class="placeholder"><h2>No request selected</h2><div>Submit one above, or pick one from the list.</div></div>';
+    renderHistory(); loadPrefs();
+  });
+  $("#clearHistory").addEventListener("click", () => { state.history = []; saveHistory(); renderHistory(); });
+  $("#clearLog").addEventListener("click", () => { state.log = []; renderLog(); });
+  $("#reloadPrefs").addEventListener("click", loadPrefs);
+  $("#prompt").addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter" && (ev.metaKey || ev.ctrlKey)) $("#intentForm").requestSubmit();
+  });
+
+  // ---------------------------------------------------------------- boot
+  checkHealth(); setInterval(checkHealth, 15000);
+  setInterval(renderHistory, 60000);
+  renderHistory(); loadPrefs();
+  const first = state.history.find((h) => !h.user || h.user === state.user);
+  if (first) openWorkflow(first.id);
+})();
+</script>
+</body>
+</html>

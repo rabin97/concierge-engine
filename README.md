@@ -59,11 +59,15 @@ Set `MOCK_FAIL_FIRST_N=2` on the mock vendor to watch the booking step retry wit
 
 ## How a request flows
 
-1. `POST /v1/intents` — guard masks PII, inserts `workflows` (`PLANNING`) keyed on `(user_id, Idempotency-Key)`
-   and an `outbox` row in the same transaction. Returns 202.
+1. `POST /v1/intents` — the guard screens the prompt. An injection/jailbreak gets a 400 with a friendly message
+   and no workflow. Otherwise PII is masked (`<PHONE_1>`, `<ADDRESS_1>`), and the masked text goes into
+   `workflows` (`PLANNING`) keyed on `(user_id, Idempotency-Key)` with an `outbox` row in the same transaction.
+   Returns 202. Answers (`/answer`) and preferences are screened the same way.
 2. Scheduler relays the outbox row to Celery → `plan_workflow` on the `intent` queue.
-3. Pipeline (`app/agents/pipeline.py`): intent agent (LLM, schema-forced) → repair loop → pgvector preferences
-   → time resolver (code, not LLM) → planner → business-rule validator → `AWAITING_CONFIRMATION` or `NEEDS_INPUT`.
+3. Pipeline (`app/agents/pipeline.py`): intent agent (LLM, schema-forced, canary in the system prompt) → output
+   guard (canary / prompt leak) → repair loop → pgvector preferences → time resolver (code, not LLM) → planner →
+   business-rule validator → action guard (step allowlist, per-user booking limits, forced confirmation)
+   → `AWAITING_CONFIRMATION` or `NEEDS_INPUT`.
 4. `POST /confirm` materialises `workflow_steps`; `advance()` queues `book_1`.
 5. `booking` worker calls the vendor with `Idempotency-Key = step_id`; step waits in `WAITING_EXTERNAL`.
 6. Vendor webhook → HMAC check → `webhook_inbox` (unique key drops duplicates) → `process_webhook` applies a
@@ -82,7 +86,6 @@ Set `MOCK_FAIL_FIRST_N=2` on the mock vendor to watch the booking step retry wit
 | `app/db.py` | Engine + `tx()` transaction helper; plain SQL |
 | `app/schemas/task_tree.py` | Pydantic `TaskTree`: discriminated step params, tz-aware times, DAG/cycle check |
 | `app/schemas/intent.py` | What the LLM may return: intents + raw slots, never timestamps |
-| `app/agents/guard.py` | PII masking, injection heuristics |
 | `app/agents/llm.py` | `FakeLLM` (offline rules) and `BedrockLLM` (Converse API, forced tool call) |
 | `app/agents/time_resolver.py` | "saturday" + MORNING → 2026-11-07 09:00–12:00 IST |
 | `app/agents/planner.py` | Compiles intents into a `TaskTree`; business-rule validator |
@@ -97,10 +100,54 @@ Set `MOCK_FAIL_FIRST_N=2` on the mock vendor to watch the booking step retry wit
 | `app/workers/tasks.py` | Thin tasks: `plan_workflow`, `run_step`, `process_webhook`, `cancel_vendor_booking` |
 | `app/workers/handlers.py` | What each step type does |
 | `app/workers/scheduler.py` | Loop: fire due jobs, relay outbox, reconcile every 30 s |
+| `app/guard/` | Input/output guard (see [Guard](#guard)); `service.py` is how the app calls it |
 | `app/api/routes.py` | REST endpoints + vendor/WhatsApp webhooks |
 | `mock_vendor/main.py` | Vendor that sends duplicate and out-of-order webhooks on purpose |
 | `scripts/demo.py` | End-to-end walkthrough |
-| `tests/` | Schema, time, planner, guard and signature tests |
+| `tests/` | Schema, time, planner, signature and guard-integration tests; `tests/guard/` unit-tests the guard |
+| `eval/` | Guard red-team / benign / holdout sets, mutation fuzzers, CI regression gate |
+
+## Guard
+
+`app/guard/` screens everything that crosses a trust boundary. It has no ML dependencies: rules, a heuristic
+classifier and regex/checksum PII detection run in about 1 ms. An LLM judge for borderline prompts can be turned on
+with `GUARD_LLM_JUDGE=true` (it calls Bedrock).
+
+```
+user text (prompt, answer, preference) ─► normalize ─► PII mask ─► tier 0: hidden content · rules · multi-turn
+                                                                   tier 1: heuristic classifier
+                                                                   tier 2: Bedrock judge (borderline only, opt-in)
+                                       ─► risk ─► allow / allow_with_redaction / flag / block (400)
+intent LLM output ─► OutputGuard (canary · system-prompt leak) ─► planner
+TaskTree ─► ActionGuard (step allowlist · forced confirmation · per-user hour/day limits from Postgres) ─► execution
+```
+
+| Piece | Where | What it does |
+|---|---|---|
+| Normalization | `normalize.py` | NFKC; strips zero-width, bidi and tag chars (decodes tag-char smuggling); homoglyph skeleton; decodes base64, URL, HTML entities, leetspeak, spaced letters; script/language detection (Hindi, Bengali, Hinglish) |
+| PII | `pii/` | Aadhaar (Verhoeff), PAN, UPI, cards (Luhn), IFSC, vehicle numbers, passport, phone, email, PIN code with context checks against prices and order IDs; heuristic names/addresses; reversible `<PHONE_1>` tokens; per-field policy (`mask` / `drop` / `allow`) |
+| Pipeline | `pipeline.py`, `config.py`, `checks/` | Tiers run cheapest first, parallel within a tier; per-check timeout, circuit breaker, fail-open/closed; noisy-OR risk; verdict cache; shadow mode for checks and single rules; per-tenant overrides; hot reload that keeps the last good config |
+| Rules | `config/patterns.yaml` | 17 versioned rules: override, role-play, DAN, delimiters, prompt extraction, secrets, impersonation, Hindi/Hinglish/Bengali, business abuse |
+| Output + actions | `output_guard.py` | Canary tokens, prompt-leak n-gram overlap, foreign-PII redaction; `ActionGuard.review_plan()` for the `TaskTree` |
+| Observability | `observability.py` | JSON decision logs (HMAC-hashed user/IP, redacted prompt, rule IDs, config version); metrics at `GET /internal/guard/metrics`; optional hash-chained audit trail and review queue |
+| App wiring | `service.py` | `screen_user_text()`, `screen_llm_output()`, `review_plan()`; one pipeline per process |
+
+Tune thresholds, PII policies, action limits and messages in `app/guard/config/default.yaml`; bump `version` on
+each change (every decision logs it). `make eval` runs the regression gate CI uses:
+
+| Set | Result |
+|---|---|
+| Red-team (45) / benign (50), tuned on | precision 1.00, recall 1.00, FPR 0.00 |
+| 533 mutated attacks | 99% caught |
+| **Holdout paraphrases (20 + 20), never tuned on** | **recall 0.35, FPR 0.00** |
+
+The holdout number is the honest one: rules catch known phrasing and encoding tricks but not paraphrases. That gap
+is what the LLM judge is for. Don't add patterns to fix holdout misses; move them into `redteam.jsonl` and write a
+fresh holdout.
+
+Per-process state to move to Redis when running several API replicas: the multi-turn session history and the verdict
+cache. Not built yet: self-harm routing (the `ESCALATE` verdict exists), off-topic scope classifier, strike system /
+token budgets, and screening of vendor text with `check_untrusted()` (no vendor text reaches the LLM today).
 
 ## Going live on AWS (ap-south-1)
 

@@ -42,6 +42,14 @@ class Settings(BaseSettings):
     max_step_attempts: int = 5
     booking_lead_time_minutes: int = 120
 
+    # guard (app/guard): screens user text, checks LLM output, limits planned actions
+    guard_config_path: str = ""  # empty = app/guard/config/default.yaml
+    guard_hmac_key: str = ""  # hashes user IDs and IPs in guard logs; set from Secrets Manager
+    guard_llm_judge: bool = False  # ask a Bedrock model about borderline prompts
+    guard_judge_model_id: str = ""  # defaults to bedrock_model_id
+    guard_review_queue_path: str = ""  # JSONL of flagged prompts for human review
+    guard_audit_path: str = ""  # hash-chained JSONL audit trail of guard decisions
+
 
 @lru_cache
 def get_settings() -> Settings:

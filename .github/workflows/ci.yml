@@ -1,0 +1,27 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "30 3 1 * *"   # monthly guard red-team run (1st of month, 09:00 IST)
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - run: ruff check .
+      - name: Unit tests (app + guard, incl. obfuscated variants)
+        run: pytest -q
+      - name: Guard red-team / benign eval with regression gate
+        run: python eval/run_eval.py --json eval-results.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: guard-eval-results
+          path: eval-results.json

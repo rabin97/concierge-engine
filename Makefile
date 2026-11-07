@@ -1,4 +1,4 @@
-.PHONY: up down logs demo test lint migrate api worker scheduler vendor
+.PHONY: up down logs demo test eval lint migrate api worker scheduler vendor
 
 up:            ## start everything in Docker
 	cp -n .env.example .env || true
@@ -15,6 +15,9 @@ demo:          ## run the end-to-end demo against the running stack
 
 test:
 	pytest -q
+
+eval:          ## guard red-team/benign eval with regression gate
+	python eval/run_eval.py
 
 lint:
 	ruff check .
