@@ -8,11 +8,11 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.agents import pipeline
+from app.agents.guard import service as guard
 from app.agents.llm import SYSTEM_PROMPT
 from app.api import routes
 from app.api.deps import current_user
 from app.api.main import app
-from app.agents.guard import service as guard
 
 PROMPT = "Schedule a deep cleaning service for Saturday morning and remind me on Friday night"
 NOW = datetime(2026, 11, 4, 3, 30, tzinfo=timezone.utc)  # Wednesday 09:00 IST

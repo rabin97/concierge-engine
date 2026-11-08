@@ -4,8 +4,8 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 
+from app.agents.guard.service import GuardBlocked
 from app.api.routes import router
-from app.agents.guard import GuardBlocked
 
 UI_FILE = Path(__file__).resolve().parent.parent / "ui" / "index.html"
 

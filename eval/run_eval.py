@@ -25,8 +25,8 @@ warnings.filterwarnings("ignore", message="GUARD_HMAC_KEY")
 
 from mutate import mutate_all  # noqa: E402
 
-from app.agents.guard.pipeline import GuardPipeline  # noqa: E402
 from app.agents.guard import GuardRequest, Verdict  # noqa: E402
+from app.agents.guard.pipeline import GuardPipeline  # noqa: E402
 
 CAUGHT = {Verdict.BLOCK, Verdict.FLAG_FOR_REVIEW, Verdict.ESCALATE}
 

@@ -3,9 +3,8 @@ import warnings
 
 import pytest
 
-from app.agents.guard import load_config
+from app.agents.guard import GuardRequest, load_config
 from app.agents.guard.pipeline import GuardPipeline
-from app.agents.guard import GuardRequest
 
 warnings.filterwarnings("ignore", message="GUARD_HMAC_KEY")
 

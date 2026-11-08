@@ -3,9 +3,9 @@ import json
 import logging
 from datetime import datetime, timedelta, timezone
 
-from app.agents.guard import AuditTrail, JsonFormatter, Metrics, ReviewQueue
-from app.agents.guard.pipeline import GuardPipeline
 from app.agents.guard import GuardRequest, Verdict
+from app.agents.guard.observability import AuditTrail, JsonFormatter, Metrics, ReviewQueue
+from app.agents.guard.pipeline import GuardPipeline
 from tests.guard.conftest import run
 
 
@@ -20,7 +20,7 @@ def test_percentiles():
 
 def test_decision_log_is_structured_and_redacted(cfg, caplog):
     p = GuardPipeline(cfg, secret_key=b"k")
-    with caplog.at_level(logging.INFO, logger="app.guard.decisions"):
+    with caplog.at_level(logging.INFO, logger="app.agents.guard.decisions"):
         run(p.check_input(GuardRequest(text="call 9876543210", user_id="rabin", ip="1.2.3.4")))
     rec = caplog.records[-1]
     line = JsonFormatter().format(rec)

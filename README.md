@@ -100,7 +100,7 @@ Set `MOCK_FAIL_FIRST_N=2` on the mock vendor to watch the booking step retry wit
 | `app/workers/tasks.py` | Thin tasks: `plan_workflow`, `run_step`, `process_webhook`, `cancel_vendor_booking` |
 | `app/workers/handlers.py` | What each step type does |
 | `app/workers/scheduler.py` | Loop: fire due jobs, relay outbox, reconcile every 30 s |
-| `app/guard/` | Input/output guard (see [Guard](#guard)); `service.py` is how the app calls it |
+| `app/agents/guard/` | Input/output guard (see [Guard](#guard)); `service.py` is how the app calls it |
 | `app/api/routes.py` | REST endpoints + vendor/WhatsApp webhooks |
 | `mock_vendor/main.py` | Vendor that sends duplicate and out-of-order webhooks on purpose |
 | `scripts/demo.py` | End-to-end walkthrough |
@@ -109,7 +109,7 @@ Set `MOCK_FAIL_FIRST_N=2` on the mock vendor to watch the booking step retry wit
 
 ## Guard
 
-`app/guard/` screens everything that crosses a trust boundary. It has no ML dependencies: rules, a heuristic
+`app/agents/guard/` screens everything that crosses a trust boundary. It has no ML dependencies: rules, a heuristic
 classifier and regex/checksum PII detection run in about 1 ms. An LLM judge for borderline prompts can be turned on
 with `GUARD_LLM_JUDGE=true` (it calls Bedrock).
 
@@ -132,7 +132,7 @@ TaskTree ─► ActionGuard (step allowlist · forced confirmation · per-user h
 | Observability | `observability.py` | JSON decision logs (HMAC-hashed user/IP, redacted prompt, rule IDs, config version); metrics at `GET /internal/guard/metrics`; optional hash-chained audit trail and review queue |
 | App wiring | `service.py` | `screen_user_text()`, `screen_llm_output()`, `review_plan()`; one pipeline per process |
 
-Tune thresholds, PII policies, action limits and messages in `app/guard/config/default.yaml`; bump `version` on
+Tune thresholds, PII policies, action limits and messages in `app/agents/guard/config/default.yaml`; bump `version` on
 each change (every decision logs it). `make eval` runs the regression gate CI uses:
 
 | Set | Result |

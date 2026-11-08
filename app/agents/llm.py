@@ -8,8 +8,8 @@ import json
 import re
 from typing import Protocol
 
-from app.config import settings
 from app.agents.guard import service as guard
+from app.config import settings
 from app.schemas.intent import IntentExtraction
 
 SYSTEM_PROMPT = """You extract household-service intents from a user's message.

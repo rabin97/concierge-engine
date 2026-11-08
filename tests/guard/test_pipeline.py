@@ -4,10 +4,11 @@ import asyncio
 import json
 import shutil
 
-from app.agents.guard import TIER_MODEL, Check, LLMJudge
-from app.agents.guard import ConfigStore, load_config
+from app.agents.guard import ConfigStore, GuardRequest, Source, Verdict, load_config
+from app.agents.guard.checks.base import TIER_MODEL, Check
+from app.agents.guard.checks.judge import LLMJudge
 from app.agents.guard.pipeline import GuardPipeline
-from app.agents.guard import GuardRequest, OnError, Source, Verdict
+from app.agents.guard.types import OnError
 from tests.guard.conftest import run
 
 

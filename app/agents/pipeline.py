@@ -13,12 +13,12 @@ from uuid import UUID
 
 from pydantic import ValidationError
 
+from app.agents.guard import service as guard
 from app.agents.llm import SYSTEM_PROMPT, get_llm
 from app.agents.planner import PlanContext, compile_plan, validate_rules
 from app.agents.time_resolver import TimeResolutionError
 from app.config import settings
 from app.db import q, tx
-from app.agents.guard import service as guard
 from app.schemas.intent import IntentExtraction
 from app.services import preferences
 from app.services import workflow_engine as wfe

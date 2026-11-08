@@ -6,10 +6,10 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response
 from fastapi.responses import PlainTextResponse
 
+from app.agents.guard import service as guard
 from app.api.deps import current_user
 from app.config import settings
 from app.db import q, tx
-from app.agents.guard import service as guard
 from app.schemas.api import AnswerRequest, IntentAccepted, IntentRequest, PreferenceIn, WorkflowView
 from app.services import preferences, webhooks
 from app.services import workflow_engine as wfe

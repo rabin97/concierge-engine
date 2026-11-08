@@ -4,9 +4,9 @@ from uuid import uuid4
 
 import pytest
 
-from app.agents.guard.output_guard import ActionGuard, CanaryManager, OutputGuard
-from app.agents.guard import PIIVault
 from app.agents.guard import Verdict
+from app.agents.guard.output_guard import ActionGuard, CanaryManager, OutputGuard
+from app.agents.guard.pii.vault import PIIVault
 from app.schemas.task_tree import BookServiceParams, ReminderParams, Step, StepType, TaskTree, TimeWindow
 
 SYSTEM_PROMPT = ("You are HomeHelp, a household concierge for customers in Bangalore. Only help "

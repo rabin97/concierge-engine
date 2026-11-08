@@ -28,7 +28,7 @@ build-backend = "setuptools.build_meta"
 include = ["app*", "mock_vendor*"]
 
 [tool.setuptools.package-data]
-"app.guard" = ["config/*.yaml"]
+"app.agents.guard" = ["config/*.yaml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

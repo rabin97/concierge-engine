@@ -14,13 +14,13 @@ from functools import lru_cache
 from typing import Any
 from uuid import UUID
 
-from app.config import settings
-from app.db import q, tx
 from app.agents.guard.config import ConfigStore
 from app.agents.guard.observability import AuditTrail, ReviewQueue, configure_json_logging
 from app.agents.guard.output_guard import ActionGuard, CanaryManager, OutputGuard, PlanReview
 from app.agents.guard.pipeline import GuardPipeline
 from app.agents.guard.types import GuardDecision, GuardRequest, Verdict
+from app.config import settings
+from app.db import q, tx
 from app.schemas.task_tree import TaskTree
 
 log = logging.getLogger(__name__)

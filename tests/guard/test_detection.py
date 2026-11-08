@@ -4,9 +4,9 @@ from urllib.parse import quote
 
 import pytest
 
-from app.agents.guard import HeuristicClassifier, RuleEngine
-from app.agents.guard import normalize
-from app.agents.guard import Verdict
+from app.agents.guard import Verdict, normalize
+from app.agents.guard.checks.classifier import HeuristicClassifier
+from app.agents.guard.checks.rules import RuleEngine
 from tests.guard.conftest import run
 
 ATTACKS = [

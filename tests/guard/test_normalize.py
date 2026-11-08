@@ -1,6 +1,7 @@
 import base64
 
-from app.agents.guard import NormalizationSettings, deleet, despace, estimate_tokens, normalize
+from app.agents.guard import normalize
+from app.agents.guard.normalize import NormalizationSettings, deleet, despace, estimate_tokens
 
 
 def test_nfkc_folds_fullwidth():

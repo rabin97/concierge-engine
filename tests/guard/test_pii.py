@@ -1,15 +1,7 @@
 import pytest
 
-from app.agents.guard import (
-    FieldPolicy,
-    PIIDetector,
-    PIIVault,
-    apply_policies,
-    luhn_valid,
-    storage_value,
-    verhoeff_check_digit,
-    verhoeff_valid,
-)
+from app.agents.guard.pii.detectors import PIIDetector, luhn_valid, verhoeff_check_digit, verhoeff_valid
+from app.agents.guard.pii.vault import FieldPolicy, PIIVault, apply_policies, storage_value
 
 DET = PIIDetector()
 

@@ -55,7 +55,7 @@ class JsonFormatter(logging.Formatter):
 def configure_json_logging(level: int = logging.INFO) -> None:
     h = logging.StreamHandler()
     h.setFormatter(JsonFormatter())
-    root = logging.getLogger("app.guard")
+    root = logging.getLogger("app.agents.guard")
     root.handlers[:] = [h]
     root.setLevel(level)
     root.propagate = False
@@ -86,7 +86,7 @@ def decision_record(decision: "GuardDecision", request: "GuardRequest", key: byt
 
 class DecisionLogger:
     def __init__(self, logger: logging.Logger | None = None) -> None:
-        self.logger = logger or logging.getLogger("app.guard.decisions")
+        self.logger = logger or logging.getLogger("app.agents.guard.decisions")
 
     def log(self, record: dict[str, Any]) -> None:
         lvl = logging.WARNING if record.get("verdict") in ("block", "escalate") else logging.INFO

@@ -1,4 +1,4 @@
-"""app.guard: input/output guard for an AI household concierge."""
+"""app.agents.guard: input/output guard for an AI household concierge."""
 import logging
 
 from .config import ConfigStore, GuardConfig, load_config
@@ -7,7 +7,7 @@ from .output_guard import ActionGuard, CanaryManager, OutputGuard
 from .pipeline import GuardPipeline, build_default_pipeline, wrap_untrusted
 from .types import CheckResult, GuardDecision, GuardRequest, Source, Verdict
 
-logging.getLogger("app.guard").addHandler(logging.NullHandler())
+logging.getLogger("app.agents.guard").addHandler(logging.NullHandler())
 
 __version__ = "0.1.0"
 __all__ = [
