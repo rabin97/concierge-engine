@@ -109,14 +109,22 @@ Set `MOCK_FAIL_FIRST_N=2` on the mock vendor to watch the booking step retry wit
 
 ## Guard
 
-`app/agents/guard/` screens everything that crosses a trust boundary. It has no ML dependencies: rules, a heuristic
-classifier and regex/checksum PII detection run in about 1 ms. An LLM judge for borderline prompts can be turned on
-with `GUARD_LLM_JUDGE=true` (it calls Bedrock).
+`app/agents/guard/` screens everything that crosses a trust boundary. It has no ML dependencies. By default it is
+fully offline: rules, a heuristic classifier and regex/checksum PII detection run in about 1 ms. Two optional layers
+call gpt-oss on Bedrock through its OpenAI-compatible endpoint (`openai` SDK, Responses API), using a Bedrock API key
+in `AWS_BEARER_TOKEN_BEDROCK`:
+
+- `GUARD_CLASSIFIER=llm` replaces the heuristic classifier with the model, on every message (~1 s, one call each).
+- `GUARD_LLM_JUDGE=true` asks the model only about borderline prompts (risk 0.30–0.80).
+
+Both use `GUARD_LLM_MODEL` (default `openai.gpt-oss-120b`). Their timeouts come from `GUARD_LLM_TIMEOUT_MS`. If the
+model times out or errors, the classifier flags the message (it still goes through) and the judge is ignored; after 5
+failures in a row the circuit breaker stops calling it for 30 s.
 
 ```
 user text (prompt, answer, preference) ─► normalize ─► PII mask ─► tier 0: hidden content · rules · multi-turn
-                                                                   tier 1: heuristic classifier
-                                                                   tier 2: Bedrock judge (borderline only, opt-in)
+                                                                   tier 1: heuristic or gpt-oss classifier
+                                                                   tier 2: gpt-oss judge (borderline only, opt-in)
                                        ─► risk ─► allow / allow_with_redaction / flag / block (400)
 intent LLM output ─► OutputGuard (canary · system-prompt leak) ─► planner
 TaskTree ─► ActionGuard (step allowlist · forced confirmation · per-user hour/day limits from Postgres) ─► execution

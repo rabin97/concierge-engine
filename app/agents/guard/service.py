@@ -14,6 +14,7 @@ from functools import lru_cache
 from typing import Any
 from uuid import UUID
 
+from app.agents.guard.checks import Complete, LLMInjectionClassifier, LLMJudge, make_openai_complete
 from app.agents.guard.config import ConfigStore
 from app.agents.guard.observability import AuditTrail, ReviewQueue, configure_json_logging
 from app.agents.guard.output_guard import ActionGuard, CanaryManager, OutputGuard, PlanReview
@@ -45,23 +46,44 @@ class LLMOutputBlocked(ValueError):
     like any other unusable extraction."""
 
 
+def _llm_complete() -> Complete:
+    """gpt-oss (or any model) behind an OpenAI-compatible endpoint, Bedrock by default."""
+    from openai import OpenAI
+
+    api_key = settings.guard_llm_api_key or settings.aws_bearer_token_bedrock
+    if not api_key:
+        raise RuntimeError("the guard LLM needs GUARD_LLM_API_KEY or AWS_BEARER_TOKEN_BEDROCK")
+    base_url = settings.guard_llm_base_url or f"https://bedrock-mantle.{settings.aws_region}.api.aws/v1"
+    # No SDK retries: the pipeline has its own timeout, circuit breaker and fail-open/closed policy.
+    client = OpenAI(api_key=api_key, base_url=base_url, timeout=settings.guard_llm_timeout_ms / 1000,
+                    max_retries=0)
+    return make_openai_complete(client, settings.guard_llm_model)
+
+
+def _llm_overrides() -> dict[str, Any]:
+    """LLM checks need far more time than the defaults, which are sized for local checks."""
+    t = settings.guard_llm_timeout_ms
+    checks: dict[str, Any] = {}
+    if settings.guard_classifier == "llm":
+        checks["classifier"] = {"timeout_ms": t}
+    if settings.guard_llm_judge:
+        checks["llm_judge"] = {"timeout_ms": t}
+    if not checks:
+        return {}
+    return {"checks": checks, "latency_budget_ms": len(checks) * t + 300}
+
+
 @lru_cache
 def get_pipeline() -> GuardPipeline:
     configure_json_logging()
-    judge = None
-    if settings.guard_llm_judge:
-        import boto3
-
-        from app.agents.guard.checks import LLMJudge, make_bedrock_complete
-
-        model_id = settings.guard_judge_model_id or settings.bedrock_model_id
-        if not model_id:
-            raise RuntimeError("GUARD_LLM_JUDGE needs GUARD_JUDGE_MODEL_ID or BEDROCK_MODEL_ID")
-        client = boto3.client("bedrock-runtime", region_name=settings.aws_region)
-        judge = LLMJudge(make_bedrock_complete(client, model_id))
+    if settings.guard_classifier not in ("heuristic", "llm"):
+        raise RuntimeError(f"GUARD_CLASSIFIER must be heuristic or llm, not {settings.guard_classifier!r}")
+    complete = _llm_complete() if settings.guard_classifier == "llm" or settings.guard_llm_judge else None
     return GuardPipeline(
-        ConfigStore(settings.guard_config_path or None),
-        judge=judge,
+        ConfigStore(settings.guard_config_path or None, overrides=_llm_overrides() or None),
+        classifier=LLMInjectionClassifier(complete, name=settings.guard_llm_model)
+        if settings.guard_classifier == "llm" else None,
+        judge=LLMJudge(complete) if settings.guard_llm_judge else None,
         secret_key=settings.guard_hmac_key.encode() if settings.guard_hmac_key else None,
         review_queue=ReviewQueue(settings.guard_review_queue_path) if settings.guard_review_queue_path else None,
         audit=AuditTrail(settings.guard_audit_path) if settings.guard_audit_path else None,

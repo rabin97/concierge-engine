@@ -1,20 +1,16 @@
 """Section 2, layer 3: cheap LLM judge, only for borderline scores.
 
-Provider-agnostic: pass any ``async (prompt) -> str`` completion function.
+Provider-agnostic: pass any ``async (prompt) -> str`` completion function. The app uses
+``checks.llm.make_openai_complete`` (gpt-oss on Bedrock).
 """
 from __future__ import annotations
 
-import asyncio
-import json
-import re
 import secrets
 from dataclasses import dataclass
-from typing import Awaitable, Callable
 
 from ..types import GuardContext
 from .base import TIER_JUDGE, Check
-
-Complete = Callable[[str], Awaitable[str]]
+from .llm import Complete, extract_json
 
 JUDGE_PROMPT = """You are a security reviewer for a household concierge assistant. The \
 assistant only helps with household and concierge tasks: booking plumbers, \
@@ -45,10 +41,7 @@ class JudgeVerdict:
 
 
 def parse_judge_reply(reply: str) -> JudgeVerdict:
-    m = re.search(r"\{.*\}", reply, re.S)
-    if not m:
-        raise ValueError("judge reply has no JSON object")
-    data = json.loads(m.group(0))
+    data = extract_json(reply)
     conf = float(data.get("confidence", 0.5))
     return JudgeVerdict(
         household_request=bool(data.get("household_request", False)),
@@ -96,19 +89,3 @@ class JudgeCheck(Check):
                            metadata={"household_request": v.household_request,
                                      "injection_attempt": v.injection_attempt,
                                      "confidence": v.confidence, "replaces_prior": True})
-
-
-def make_bedrock_complete(client, model_id: str, max_tokens: int = 120) -> Complete:
-    """Adapter for a boto3 ``bedrock-runtime`` client (Converse API). boto3 is
-    synchronous, so the call runs in a worker thread."""
-
-    def _call(prompt: str) -> str:
-        resp = client.converse(modelId=model_id,
-                               messages=[{"role": "user", "content": [{"text": prompt}]}],
-                               inferenceConfig={"temperature": 0, "maxTokens": max_tokens})
-        return "".join(b.get("text", "") for b in resp["output"]["message"]["content"])
-
-    async def complete(prompt: str) -> str:
-        return await asyncio.to_thread(_call, prompt)
-
-    return complete

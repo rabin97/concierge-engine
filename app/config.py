@@ -45,8 +45,14 @@ class Settings(BaseSettings):
     # guard (app/agents/guard): screens user text, checks LLM output, limits planned actions
     guard_config_path: str = ""  # empty = app/agents/guard/config/default.yaml
     guard_hmac_key: str = ""  # hashes user IDs and IPs in guard logs; set from Secrets Manager
-    guard_llm_judge: bool = False  # ask a Bedrock model about borderline prompts
-    guard_judge_model_id: str = ""  # defaults to bedrock_model_id
+    # guard LLM: gpt-oss on Bedrock through its OpenAI-compatible endpoint (openai SDK, Responses API)
+    guard_classifier: str = "heuristic"  # heuristic (offline, ~0.1 ms) | llm (one LLM call per message)
+    guard_llm_judge: bool = False  # ask the LLM about borderline prompts only
+    guard_llm_model: str = "openai.gpt-oss-120b"
+    guard_llm_base_url: str = ""  # empty = https://bedrock-mantle.{aws_region}.api.aws/v1
+    guard_llm_api_key: str = ""  # empty = AWS_BEARER_TOKEN_BEDROCK (a Bedrock API key)
+    guard_llm_timeout_ms: int = 5000
+    aws_bearer_token_bedrock: str = ""  # Bedrock API key; boto3 reads it from the env too
     guard_review_queue_path: str = ""  # JSONL of flagged prompts for human review
     guard_audit_path: str = ""  # hash-chained JSONL audit trail of guard decisions
 

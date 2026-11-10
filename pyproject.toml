@@ -15,6 +15,7 @@ dependencies = [
   "boto3>=1.35",
   "tzdata",
   "pyyaml>=6.0",  # guard config and rule files
+  "openai>=1.99",  # guard LLM (gpt-oss on Bedrock via its OpenAI-compatible endpoint)
 ]
 
 [project.optional-dependencies]
